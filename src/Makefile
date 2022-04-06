@@ -1,5 +1,4 @@
 CC=g++
-PWD:=$(shell pwd)
 
 #includes
 IDIR=../include
@@ -33,10 +32,13 @@ GFX_LIBS=$(SDL_LIB) -lGL -ldl
 all : ising
 
 ising: $(OBJ) | imgui
-	$(CC) -o $@ $^ $(GFX_LIBS) $(PWD)/libimgui.so
+	$(CC) -o $@ $^ $(GFX_LIBS) ./libimgui.so
 
-$(ODIR)/%.o: %.cpp $(DEPS)
+$(ODIR)/%.o: %.cpp $(DEPS) | $(ODIR)
 	$(CC) -c -o $@ $< $(CFLAGS) $(IMG_CFLAGS)
+
+$(ODIR):
+	mkdir -p $@
 
 imgui: libimgui.so
 
