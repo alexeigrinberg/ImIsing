@@ -73,37 +73,24 @@ int main(int, char**)
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init(glsl_version);
     
-    // Create test simulation
+    // Create simulation
     int sim_width = 400;
     int sim_height = 400;
     Ising* sim = new Ising(sim_width, sim_height);
     sim->HotStart();
 
-    // Load Texture
+    // Initialize texture
     GLuint image_texture = 0;
     bool ret = SetupTexture(&image_texture);    
     IM_ASSERT(ret); 
     
+    // Create image and update texture
     int image_width = 800;
     int image_height = 800;
-    unsigned int color_up = 0xfedcbaFF;
-    unsigned int color_down = 0x000000FF; 
-    unsigned char* image_data = SetupImageData(image_width, image_height,4);    
-   
     LatticeImage* image = new LatticeImage(image_width, image_height);
+    UpdateImageFromSim(sim,image);
+    UpdateTexture(image);
     
-    bool tex_class = true; 
-    if (tex_class)
-    {
-        UpdateImageFromSim(sim,image);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
-    }
-    else
-    {
-        UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
-    }
-
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
     // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
@@ -124,6 +111,7 @@ int main(int, char**)
     bool show_demo_window = false;
     bool hot_start = true;
     bool wolff = false;
+    bool state_toggle = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     // Slider bounds
@@ -161,16 +149,8 @@ int main(int, char**)
             for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++){
                 sim->UpdateMetropolis();
             }
-            if (tex_class)
-            {
-                image->UpdateDataFromSim(sim);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
-            }
-            else
-            {
-                UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
-            }
+            UpdateImageFromSim(sim,image);
+            UpdateTexture(image);
         }
 
         if (show_demo_window)
@@ -194,12 +174,12 @@ int main(int, char**)
             {
                 if (ImGui::Button("Step"))
                 {
-                    for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++){
+                    for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+                    {
                         sim->UpdateMetropolis();
                     }
-                    UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
-                }
+                    UpdateImageFromSim(sim, image);
+                    UpdateTexture(image);}
             }
             else
             {
@@ -215,9 +195,8 @@ int main(int, char**)
             if (ImGui::Button("Reset"))
             {
                 hot_start?sim->HotStart():sim->ColdStart();
-                UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
-
+                UpdateImageFromSim(sim, image);
+                UpdateTexture(image);
             }
 
             // Size Combo box
@@ -247,13 +226,17 @@ int main(int, char**)
                         hot_start?sim->HotStart():sim->ColdStart();
                         
                         // Update display
-                        UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
-                    }
+                        UpdateImageFromSim(sim, image);
+                        UpdateTexture(image);}
                 }
                 ImGui::EndCombo();
             }
 
+            ImGui::SameLine();
+            ImGui::ColorEdit4("Spin-up",image->color_a,ImGuiColorEditFlags_NoInputs);
+            ImGui::SameLine();
+            ImGui::ColorEdit4("Spin-down",image->color_b,ImGuiColorEditFlags_NoInputs);
+            
             // Initial spin configurations
             ImGui::SameLine();
             ImGui::Checkbox("Hot Start", &hot_start);
@@ -266,11 +249,9 @@ int main(int, char**)
             ImGui::SliderScalar("Field",ImGuiDataType_Double, &sim->field, &field_low, &field_high,"%.2f");
             ImGui::PopItemWidth();
 
-            //ImGui::BeginDisabled();
             ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            //ImGui::EndDisabled();
-            ImGui::SameLine();
-            ImGui::Checkbox("Use texture class", &tex_class);
+            ImGui::SameLine();            
+            ImGui::Checkbox("State toggle", &state_toggle);
             ImGui::SameLine();
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();

@@ -2,7 +2,7 @@ CC=g++
 
 #includes
 IDIR=../include
-CFLAGS=-I$(IDIR)
+CFLAGS=-I$(IDIR) -O3
 
 #dependencies
 _DEPS=helper.h ising.h latticeimage.h
@@ -19,7 +19,7 @@ BDIR=../bin
 #imgui
 IMG_DIR=../imgui
 IMG_BACK=$(IMG_DIR)/backends
-IMG_CFLAGS=$(SDL_INC) -I$(IMG_DIR) -I$(IMG_BACK)
+IMG_CFLAGS=$(SDL_INC) -I$(IMG_DIR) -I$(IMG_BACK) -O3
 
 #graphics
 SDL_INC=$(shell sdl2-config --cflags)

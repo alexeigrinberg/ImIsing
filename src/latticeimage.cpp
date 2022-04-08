@@ -4,7 +4,19 @@ LatticeImage::LatticeImage(int w, int h)
 {
     width = w;
     height = h;
-    data = new unsigned char[w*h*nchan]; 
+    data = new unsigned char[w*h*nchan];
+    color_a = new float[4];
+    color_b = new float[4];
+    
+    color_a[0] = 0.0f;
+    color_a[1] = 1.0f;
+    color_a[2] = 1.0f;
+    color_a[3] = 1.0f;
+
+    color_b[0] = 0.0f;
+    color_b[1] = 0.0f;
+    color_b[2] = 0.0f;
+    color_b[3] = 1.0f;
 }
 
 LatticeImage::LatticeImage(int w, int h, int n)
@@ -15,39 +27,13 @@ LatticeImage::LatticeImage(int w, int h, int n)
     data = new unsigned char[w*h*n];
 }
 
-bool LatticeImage::UpdateDataFromSim(Ising* sim)
+LatticeImage::LatticeImage(int w, int h, float* ca, float* cb)
 {
-    if (sim->data == NULL || data == NULL)
-        return false;
-
-    int in_width = sim->GetWidth();
-    int in_height = sim->GetHeight();
-    
-    int scale_x = width / in_width;
-    int scale_y = height / in_height;
-    
-    for (int i=0; i<in_height; i++){
-        for (int j=0; j<in_width; j++){
-            // upscale each pixel in sim data
-            char val = sim->data[i*in_width+j];
-            
-            for (int x=0; x<scale_y; x++){
-                for (int y=0; y<scale_x; y++){
-                    int idx = width*(scale_y*i+x)+scale_x*j+y;
-                    
-                    // loop over each color channel
-                    for (int n=0; n<nchan; n++){
-                        if (val==1)
-                            data[nchan*idx+n] = (color_a >> 8*(nchan-1-n)) & 0xFF;
-                        else
-                            data[nchan*idx+n] = (color_b >> 8*(nchan-1-n)) & 0xFF;
-                    }
-
-                }
-            }
-        }
-    }
-    return true;
+    width = w;
+    height = h;
+    data = new unsigned char[w*h*nchan];
+    color_a = ca;
+    color_b = cb;
 }
 
 bool LatticeImage::PrintData()
