@@ -5,12 +5,12 @@ IDIR=../include
 CFLAGS=-I$(IDIR)
 
 #dependencies
-_DEPS=helper.h ising.h
+_DEPS=helper.h ising.h latticeimage.h
 DEPS=$(patsubst %,$(IDIR)/%,$(_DEPS))
 
 #objects
 ODIR=obj
-_OBJ=gui.o helper.o ising.o
+_OBJ=gui.o helper.o ising.o latticeimage.o
 OBJ=$(patsubst %,$(ODIR)/%,$(_OBJ))
 
 #bin

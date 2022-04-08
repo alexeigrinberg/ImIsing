@@ -21,7 +21,7 @@ unsigned char* SetupImageData(int width, int height, int nchan)
 }
 
 
-bool UpdateImageFromSim(Ising* sim, unsigned char* image_data, int out_width, int out_height)
+bool UpdateImageFromSim(Ising* sim, unsigned char* image_data, int out_width, int out_height, unsigned int color_a, unsigned int color_b)
 {
     if (sim->data == NULL || image_data == NULL)
         return false;
@@ -43,16 +43,65 @@ bool UpdateImageFromSim(Ising* sim, unsigned char* image_data, int out_width, in
                     int idx = out_width*(scale_y*i+x)+scale_x*j+y;
                     if (val==1)
                     {
-                        image_data[4*idx] = 0;
-                        image_data[4*idx+1] = 255;
-                        image_data[4*idx+2] = 255;
+                        image_data[4*idx] = (color_a >> 24) & 0xFF;
+                        image_data[4*idx+1] = (color_a >> 16) & 0xFF;
+                        image_data[4*idx+2] = (color_a >> 8) & 0xFF;
+                        image_data[4*idx+3] = color_a & 0xFF;
                     }
                     else
                     {
-                        image_data[4*idx] = 0;
-                        image_data[4*idx+1] = 0;
-                        image_data[4*idx+2] = 0;
+                        image_data[4*idx] = (color_b >> 24) & 0xFF;
+                        image_data[4*idx+1] = (color_b >> 16) & 0xFF;
+                        image_data[4*idx+2] = (color_b >> 8) & 0xFF;
+                        image_data[4*idx+3] = color_b & 0xFF;
                     }                
+                }
+            }
+        }
+    }
+    return true;
+}
+
+bool UpdateImageFromSim(Ising* sim, LatticeImage* image)
+{
+    if (sim->data == NULL || image->data == NULL)
+        return false;
+
+    int in_width = sim->GetWidth();
+    int in_height = sim->GetHeight();
+    
+    int out_width = image->GetWidth();
+    int out_height = image->GetHeight();
+
+    int scale_x = out_width / in_width;
+    int scale_y = out_height / in_height;
+    
+    int nchan = image->GetNumChan();
+    int color_up = image->color_a;
+    int color_down = image->color_b;
+
+    for (int i=0; i<in_height; i++)
+    {
+        for (int j=0; j<in_width; j++)
+        {
+            // upscale each pixel in sim data
+            char val = sim->data[i*in_width+j];
+            
+            for (int x=0; x<scale_y; x++)
+            {
+                for (int y=0; y<scale_x; y++)
+                {
+                    int idx = out_width*(scale_y*i+x)+scale_x*j+y;
+                    
+                    // loop over each color channel
+                    for (int n=0; n<nchan; n++)
+                    {
+                        if (val==1)
+                            image->data[nchan*idx+n] = (image->color_a >> 8*(nchan-1-n)) & 0xFF;
+                        else
+                            image->data[nchan*idx+n] = (image->color_b >> 8*(nchan-1-n)) & 0xFF;
+                    }
+
                 }
             }
         }

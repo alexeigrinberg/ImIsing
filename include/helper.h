@@ -9,10 +9,12 @@
 #endif
 
 #include "ising.h"
+#include "latticeimage.h"
 
 char* GenerateRandomData(int width, int height);
 unsigned char* SetupImageData(int width, int height, int nchan);
-bool UpdateImageFromSim(Ising* sim, unsigned char* image_data, int out_width, int out_height);
+bool UpdateImageFromSim(Ising* sim, unsigned char* image_data, int out_width, int out_height, unsigned int color_a, unsigned int color_b);
+bool UpdateImageFromSim(Ising* sim, LatticeImage* image);
 bool UpdateImageFromSimRedOnly(Ising* sim, unsigned char* image_data, int out_width, int out_height);
 bool SetupTexture(GLuint* out_texture);
 bool UpdateTexture(unsigned char* image_data, int out_width, int out_height);

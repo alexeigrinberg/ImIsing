@@ -2,7 +2,6 @@
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
 #include "helper.h"
-#include "ising.h"
 #include <stdio.h>
 #include <iostream>
 #include <SDL.h>
@@ -78,22 +77,32 @@ int main(int, char**)
     int sim_width = 400;
     int sim_height = 400;
     Ising* sim = new Ising(sim_width, sim_height);
-    
-    // Initialize sim data
     sim->HotStart();
 
-    double energy = sim->GetEnergy();
-    
     // Load Texture
-    int image_width = 800;
-    int image_height = 800;
-    unsigned char* image_data = SetupImageData(image_width, image_height,4);    
-    UpdateImageFromSim(sim, image_data, image_width, image_height);
-    
     GLuint image_texture = 0;
     bool ret = SetupTexture(&image_texture);    
     IM_ASSERT(ret); 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+    
+    int image_width = 800;
+    int image_height = 800;
+    unsigned int color_up = 0xfedcbaFF;
+    unsigned int color_down = 0x000000FF; 
+    unsigned char* image_data = SetupImageData(image_width, image_height,4);    
+   
+    LatticeImage* image = new LatticeImage(image_width, image_height);
+    
+    bool tex_class = true; 
+    if (tex_class)
+    {
+        UpdateImageFromSim(sim,image);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
+    }
+    else
+    {
+        UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+    }
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -152,8 +161,16 @@ int main(int, char**)
             for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++){
                 sim->UpdateMetropolis();
             }
-            UpdateImageFromSim(sim, image_data, image_width, image_height);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+            if (tex_class)
+            {
+                image->UpdateDataFromSim(sim);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
+            }
+            else
+            {
+                UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+            }
         }
 
         if (show_demo_window)
@@ -179,8 +196,8 @@ int main(int, char**)
                 {
                     for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++){
                         sim->UpdateMetropolis();
-                    }                
-                    UpdateImageFromSim(sim, image_data, image_width, image_height);
+                    }
+                    UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
                 }
             }
@@ -198,7 +215,7 @@ int main(int, char**)
             if (ImGui::Button("Reset"))
             {
                 hot_start?sim->HotStart():sim->ColdStart();
-                UpdateImageFromSim(sim, image_data, image_width, image_height);
+                UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
 
             }
@@ -230,7 +247,7 @@ int main(int, char**)
                         hot_start?sim->HotStart():sim->ColdStart();
                         
                         // Update display
-                        UpdateImageFromSim(sim, image_data, image_width, image_height);
+                        UpdateImageFromSim(sim, image_data, image_width, image_height, color_up, color_down);
                         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
                     }
                 }
@@ -252,7 +269,10 @@ int main(int, char**)
             //ImGui::BeginDisabled();
             ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
             //ImGui::EndDisabled();
-
+            ImGui::SameLine();
+            ImGui::Checkbox("Use texture class", &tex_class);
+            ImGui::SameLine();
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();
         }
 
