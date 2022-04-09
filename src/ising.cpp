@@ -34,34 +34,43 @@ bool Ising::HotStart()
 {
     if (data==NULL)
         return false;
-    for (int i=0; i<height; i++){
-        for (int j=0; j<width; j++){
+    for (int i=0; i<height; i++)
+    {
+        for (int j=0; j<width; j++)
+        {
             data[i*width+j] = (coin(engine)==1)?1:-1;
         }
     }
+    energy = CalcEnergy();
     return true;
+
 }
 
 bool Ising::ColdStart()
 {
     if (data==NULL)
         return false;
-    for (int i=0; i<height; i++){
-        for (int j=0; j<width; j++){
+    for (int i=0; i<height; i++)
+    {
+        for (int j=0; j<width; j++)
+        {
             data[i*width+j] = 1;
         }
     }
+    energy = CalcEnergy();
     return true;
 }
 
-double Ising::GetEnergy()
+double Ising::CalcEnergy()
 {   
     double site_energy = 0.0;
     double bond_energy = 0.0;
     if (data==NULL)
         return site_energy;
-    for (int i=0; i<height; i++){
-        for (int j=0; j<width; j++){
+    for (int i=0; i<height; i++)
+    {
+        for (int j=0; j<width; j++)
+        {
             int site = i*width + j;
             int left = i*width+(j+width-1)%width;
             int up = (i+height-1)%height*width+j;
@@ -77,20 +86,22 @@ double Ising::GetEnergy()
     }
     //printf("Site Energy: %.1f\n",site_energy);
     //printf("Bond Energy: %.1f\n",bond_energy);
-    return 0.5*jay*bond_energy + mew*field*site_energy;
+    return (0.5*jay*bond_energy + mew*field*site_energy)/(width*height);
 }
         
-double Ising::GetMag()
+double Ising::CalcMag()
 {
     double mag = 0.0;
     if (data==NULL)
         return mag;
-    for (int i=0; i<height; i++){
-        for (int j=0; j<width; j++){
+    for (int i=0; i<height; i++)
+    {
+        for (int j=0; j<width; j++)
+        {
             mag += data[i*width+j];
         }
     }
-    return mew*mag;
+    return mew*mag/(width*height);
 }
 
 double Ising::DeltaEnergy(int i, int j)
@@ -105,7 +116,6 @@ double Ising::DeltaEnergy(int i, int j)
     int right = i*width+(j+1)%width;
     int down = (i+1)%height*width+j;
     char neighbors = data[left] + data[up] + data[right] + data[down];
-    
     return 2*(jay*neighbors + mew*field)*data[site];
 }
 
@@ -117,8 +127,13 @@ bool Ising::UpdateMetropolis()
     int i = row_die(engine);
     int j = col_die(engine);
     double delta = DeltaEnergy(i,j);
+    
     if ((delta <= 0.0) || (exp(-delta*beta) >= prob(engine)))
+    {
         data[i*width+j] *= -1;
+        energy += delta/(width*height);
+        mag += 2*mew*data[i*width+j]/(width*height);
+    }   
     return true;
 }
 
@@ -126,8 +141,10 @@ bool Ising::PrintData()
 {
     if (data==NULL)
         return false;
-    for (int i=0; i<height; i++){
-        for (int j=0; j<width; j++){
+    for (int i=0; i<height; i++)
+    {
+        for (int j=0; j<width; j++)
+        {
             std::cout << ((data[i*width+j]==1)?1:0) << ' ';
         }
         std::cout << std::endl;

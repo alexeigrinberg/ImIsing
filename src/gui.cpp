@@ -1,9 +1,11 @@
 #include "imgui.h"
+#include "implot.h"
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
 #include "helper.h"
 #include <stdio.h>
 #include <iostream>
+#include <vector>
 #include <SDL.h>
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <SDL_opengles2.h>
@@ -61,6 +63,7 @@ int main(int, char**)
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -108,17 +111,38 @@ int main(int, char**)
 
     // Our state
     bool play = false;
+    bool collecting = false;
     bool show_demo_window = false;
+    bool show_plot_window = false;
     bool hot_start = true;
     bool wolff = false;
     bool state_toggle = true;
+    bool first_press = true;
+    bool need_to_reset_graph = false;
+
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
+    std::vector<double> energies; 
+    std::vector<double> mags;
+    std::vector<double> times;
+
+    std::vector<double> avg_energies;
+    std::vector<double> temps;
+    std::vector<double> test_betas{0.1,0.15,0.20,0.25,0.30,0.35,0.40,0.41,0.42,
+        0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.55, 0.60, 0.65, 0.70,
+        0.75, 0.80, 0.85, 0.90, 0.95, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0};
+
+    int current_sweep = 0;
+    int current_beta_idx = 0;
+
     // Slider bounds
     const double beta_low = 0.0971;
     const double beta_high = 2.0;
     const double field_low = -1.0;
     const double field_high = 1.0;
+
+    // graphing parameters
+    int max_data_size = 5000;
 
     // Main loop
     bool done = false;
@@ -145,22 +169,91 @@ int main(int, char**)
         ImGui::NewFrame();
         
         if (play)
-        { 
-            for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++){
+        {
+            // Only save up to max_data_size (5000) data points
+            if (times.size() < max_data_size)
+            {
+                energies.push_back(sim->energy);
+                mags.push_back(abs(sim->mag));
+                times.push_back((double)current_sweep);
+            }
+            else
+            {
+                need_to_reset_graph = true;
+            }
+
+            for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+            {
                 sim->UpdateMetropolis();
             }
+            current_sweep++;
             UpdateImageFromSim(sim,image);
             UpdateTexture(image);
         }
 
-        if (show_demo_window)
-           ImGui::ShowDemoWindow(&show_demo_window);
+        if (collecting)
+        {
+            if (current_beta_idx < test_betas.size())
+            {
+                sim->beta=test_betas[current_beta_idx];
 
+                if (current_sweep<100)
+                {
+                    energies.push_back(sim->energy);
+                    mags.push_back(abs(sim->mag));
+                    times.push_back((double)current_sweep);
+                    
+                    for (int i=0;i<sim->GetHeight()*sim->GetWidth();i++)
+                    {
+                        sim->UpdateMetropolis();
+                    }
+                    current_sweep++;
+                }
+                else
+                {
+                    temps.push_back(1/(sim->beta));
+                    avg_energies.push_back(sim->energy);
+                    
+                    energies.clear();
+                    mags.clear();
+                    times.clear();
+                    current_sweep=0;
+                    hot_start?sim->HotStart():sim->ColdStart();
+                    
+                    current_beta_idx++;
+                }
+
+                UpdateImageFromSim(sim,image);
+                UpdateTexture(image);
+            }
+            else
+            {
+                current_beta_idx = 0;
+                first_press = true;
+                collecting = 1 - collecting;
+            }
+        }
+
+        if (show_demo_window)
+        {
+            ImGui::ShowDemoWindow(&show_demo_window);
+        }
+
+        if (show_plot_window)
+        {
+            ImPlot::ShowDemoWindow(&show_plot_window);
+        }
+        
+        // Main window
         {
             const char* start_name = play?"Pause":"Start"; 
+            const char* collecting_name = collecting?"Pause":"Collect";
             
             ImGui::Begin("Ising Simulation");
+            ImGui::BeginGroup();
             ImGui::Image((void*)(intptr_t)image_texture, ImVec2(image_width, image_height));
+            
+            
             
             // Toggle between start and pause
             if (ImGui::Button(start_name))
@@ -170,18 +263,7 @@ int main(int, char**)
 
             // Manually do one sweep (only if simulation is paused)
             ImGui::SameLine();
-            if (!play)
-            {
-                if (ImGui::Button("Step"))
-                {
-                    for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
-                    {
-                        sim->UpdateMetropolis();
-                    }
-                    UpdateImageFromSim(sim, image);
-                    UpdateTexture(image);}
-            }
-            else
+            if (play)
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(1 / 7.0f, 0.6f, 0.6f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(1 / 7.0f, 0.7f, 0.7f));
@@ -189,7 +271,32 @@ int main(int, char**)
                 ImGui::Button("Step");
                 ImGui::PopStyleColor(3);            
             }
-
+            else
+            {
+                if (ImGui::Button("Step"))
+                {
+                    // Only save up to max_data_size (5000) data points
+                    if (times.size() < max_data_size)
+                    {
+                        energies.push_back(sim->energy);
+                        mags.push_back(abs(sim->mag));
+                        times.push_back((double)current_sweep);
+                    }
+                    else
+                    {
+                        need_to_reset_graph = true;
+                    }
+                    
+                    for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+                    {
+                        sim->UpdateMetropolis();
+                    }
+                    current_sweep++;
+                    UpdateImageFromSim(sim, image);
+                    UpdateTexture(image);
+                }
+            }
+            
             // Reset simulation to desired initial state (hot or cold)
             ImGui::SameLine();
             if (ImGui::Button("Reset"))
@@ -231,11 +338,23 @@ int main(int, char**)
                 }
                 ImGui::EndCombo();
             }
+            
+            // Spin-up color picker
+            ImGui::SameLine();
+            if (ImGui::ColorEdit4("Spin-up",image->color_a,ImGuiColorEditFlags_NoInputs))
+            {
+                UpdateImageFromSim(sim, image);
+                UpdateTexture(image);
+            }
+            
+            // Spin-down color picker
+            ImGui::SameLine();
+            if (ImGui::ColorEdit4("Spin-down",image->color_b,ImGuiColorEditFlags_NoInputs))
+            {
+                UpdateImageFromSim(sim, image);
+                UpdateTexture(image);
+            }
 
-            ImGui::SameLine();
-            ImGui::ColorEdit4("Spin-up",image->color_a,ImGuiColorEditFlags_NoInputs);
-            ImGui::SameLine();
-            ImGui::ColorEdit4("Spin-down",image->color_b,ImGuiColorEditFlags_NoInputs);
             
             // Initial spin configurations
             ImGui::SameLine();
@@ -246,14 +365,84 @@ int main(int, char**)
             
             ImGui::PushItemWidth(34.f * ImGui::GetFontSize());
             ImGui::SliderScalar("Beta",ImGuiDataType_Double, &sim->beta, &beta_low, &beta_high,"%.4f",ImGuiSliderFlags_Logarithmic);
-            ImGui::SliderScalar("Field",ImGuiDataType_Double, &sim->field, &field_low, &field_high,"%.2f");
+            if(ImGui::SliderScalar("Field",ImGuiDataType_Double, &sim->field, &field_low, &field_high,"%.2f"))
+            {
+                sim->energy = sim->CalcEnergy();
+            }
+
             ImGui::PopItemWidth();
 
             ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+            ImGui::SameLine();
+            ImGui::Checkbox("Plot Demo Window", &show_plot_window);
+            
             ImGui::SameLine();            
             ImGui::Checkbox("State toggle", &state_toggle);
             ImGui::SameLine();
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::EndGroup();
+            
+            // Plotting
+            ImGui::SameLine();
+            ImGui::BeginGroup();
+            if (ImPlot::BeginPlot("Energy",ImVec2(600,300)))
+            {
+                ImPlot::SetupAxes(NULL,NULL,ImPlotAxisFlags_AutoFit,ImPlotAxisFlags_AutoFit);
+                ImPlot::PlotLine("Test",times.data(),energies.data(),times.size());
+                ImPlot::EndPlot();
+            }
+
+            if (need_to_reset_graph)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(0 / 7.0f, 0.6f, 0.6f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(0 / 7.0f, 0.7f, 0.7f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(0 / 7.0f, 0.8f, 0.8f));
+                if (ImGui::Button("Reset plot"))
+                {
+                    energies.clear();
+                    mags.clear();
+                    times.clear();
+                    current_sweep=0;
+                    need_to_reset_graph = false;
+                }
+                ImGui::PopStyleColor(3);
+            }
+            else
+            {
+                if (ImGui::Button("Reset plot"))
+                {
+                    energies.clear();
+                    mags.clear();
+                    times.clear();
+                    current_sweep=0;
+                }
+            }
+
+            if (ImPlot::BeginPlot("<Energy>",ImVec2(600,300)))
+            {
+                ImPlot::SetupAxesLimits(0,10.5,-2.1,0);
+                ImPlot::SetupAxes(NULL,NULL,0,0);
+                ImPlot::PlotScatter("Test",temps.data(),avg_energies.data(),temps.size());
+                ImPlot::EndPlot();
+            }
+            if (ImGui::Button(collecting_name))
+            {
+                if(first_press)
+                {
+                    energies.clear();
+                    mags.clear();
+                    times.clear();
+                    current_sweep = 0;
+                    
+                    hot_start?sim->HotStart():sim->ColdStart();
+                    sim->beta = test_betas[current_beta_idx];
+
+                    first_press=false;
+                }
+                collecting = 1 - collecting;
+            }
+            ImGui::EndGroup();
+            
             ImGui::End();
         }
 
@@ -269,7 +458,10 @@ int main(int, char**)
     // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
+    delete[] sim;
+    delete[] image;
 
     SDL_GL_DeleteContext(gl_context);
     SDL_DestroyWindow(window);

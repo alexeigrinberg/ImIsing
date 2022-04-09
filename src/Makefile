@@ -18,8 +18,9 @@ BDIR=../bin
 
 #imgui
 IMG_DIR=../imgui
+IMP_DIR=../implot
 IMG_BACK=$(IMG_DIR)/backends
-IMG_CFLAGS=$(SDL_INC) -I$(IMG_DIR) -I$(IMG_BACK) -O3
+IMG_CFLAGS=$(SDL_INC) -I$(IMG_DIR) -I$(IMG_BACK) -I$(IMP_DIR) -O3
 
 #graphics
 SDL_INC=$(shell sdl2-config --cflags)
@@ -43,8 +44,8 @@ $(ODIR):
 imgui: libimgui.so
 
 #compile imgui as a shared object
-libimgui.so: $(IMG_BACK)/imgui_impl_sdl.cpp $(IMG_BACK)/imgui_impl_opengl3.cpp $(IMG_DIR)/imgui*.cpp
-	$(CC) -shared -fPIC -o libimgui.so $(IMG_CFLAGS) $(IMG_BACK)/imgui_impl_sdl.cpp $(IMG_BACK)/imgui_impl_opengl3.cpp $(IMG_DIR)/imgui*.cpp $(GFX_LIBS)
+libimgui.so: $(IMG_BACK)/imgui_impl_sdl.cpp $(IMG_BACK)/imgui_impl_opengl3.cpp $(IMG_DIR)/imgui*.cpp $(IMP_DIR)/implot*.cpp
+	$(CC) -shared -fPIC -o libimgui.so $(IMG_CFLAGS) $(IMG_BACK)/imgui_impl_sdl.cpp $(IMG_BACK)/imgui_impl_opengl3.cpp $(IMG_DIR)/imgui*.cpp $(IMP_DIR)/implot*.cpp $(GFX_LIBS)
 
 clean:
 	rm -f $(ODIR)/*.o

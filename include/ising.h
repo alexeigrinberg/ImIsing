@@ -20,6 +20,9 @@ class Ising
         double jay = 1.0;
         double mew = 1.0;
 
+        double energy = 0.0;
+        double mag = 0.0;
+        
         std::mt19937 engine;
         std::uniform_int_distribution<int> coin;
         std::uniform_int_distribution<int> row_die;
@@ -34,8 +37,8 @@ class Ising
         
         bool HotStart();
         bool ColdStart();
-        double GetEnergy();
-        double GetMag();
+        double CalcEnergy();
+        double CalcMag();
         double DeltaEnergy(int i, int j);
         bool UpdateMetropolis();
         bool PrintData();
