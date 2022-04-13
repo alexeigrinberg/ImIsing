@@ -42,6 +42,7 @@ bool Ising::HotStart()
         }
     }
     energy = CalcEnergy();
+    mag = CalcMag();
     return true;
 
 }
@@ -58,6 +59,7 @@ bool Ising::ColdStart()
         }
     }
     energy = CalcEnergy();
+    mag = CalcMag();
     return true;
 }
 
