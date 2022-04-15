@@ -8,9 +8,9 @@ LatticeImage::LatticeImage(int w, int h)
     color_a = new float[4];
     color_b = new float[4];
     
-    color_a[0] = 0.0f;
-    color_a[1] = 1.0f;
-    color_a[2] = 1.0f;
+    color_a[0] = 0.212f;
+    color_a[1] = 0.285f;
+    color_a[2] = 0.833f;
     color_a[3] = 1.0f;
 
     color_b[0] = 0.0f;

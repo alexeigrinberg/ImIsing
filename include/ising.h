@@ -7,12 +7,14 @@
 #include <cmath>
 #include <iostream>
 #include <random>
+#include <stack>
 
 class Ising
 {
     private:
         int width;
         int height;
+        int size;
     public:
         char* data;
         double field = 0.00;
@@ -20,6 +22,7 @@ class Ising
         double jay = 1.0;
         double mew = 1.0;
 
+        double time = 0.0;
         double energy = 0.0;
         double mag = 0.0;
         
@@ -28,7 +31,8 @@ class Ising
         std::uniform_int_distribution<int> row_die;
         std::uniform_int_distribution<int> col_die;
         std::uniform_real_distribution<double> prob;
-       
+        std::stack<int> wolff_stack;
+        
         Ising(int w, int h); 
         Ising(int w, int h, double b, double f);
         
@@ -41,6 +45,7 @@ class Ising
         double CalcMag();
         double DeltaEnergy(int i, int j);
         bool UpdateMetropolis();
+        bool UpdateWolff();
         bool PrintData();
 };
 

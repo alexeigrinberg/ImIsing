@@ -18,12 +18,13 @@ struct Dataplot {
     const char* name;
     float vmin;
     float vmax;
-    
+    ImPlotLocation loc;
+
     Dataplot (const char* n)
     {
         name = n;
     }
-
+    
     Dataplot (const char* n, float vd, float vu)
     {
         name = n;
@@ -31,34 +32,42 @@ struct Dataplot {
         vmax = vu;
     }
 
+    Dataplot (const char* n, float vd, float vu, ImPlotLocation el)
+    {
+        name = n;
+        vmin = vd;
+        vmax = vu;
+        loc = el;
+    }
+
 };
 
-void UpdateHLines(std::vector<double>& t_hline, int t, std::vector<double>& e_hline, double e, std::vector<double>& m_hline, double m)
+void UpdateHLines(std::vector<double>& t_hline, double t, std::vector<double>& e_hline, double e, std::vector<double>& m_hline, double m)
 {
     if (t==0)
     {
         e_hline[0]=e;
         m_hline[0]=m;
     }
-    else if (t==1)
+    else if (t_hline.size() == 1)
     {
+        t_hline.push_back(t);
+        
         e_hline[0]=e;
         e_hline.push_back(e);
         
         m_hline[0]=m;
         m_hline.push_back(m);
-        
-        t_hline.push_back(1.0);
     }
     else
     {
+        t_hline[1]=t;
+        
         e_hline[0]=e;
         e_hline[1]=e;
 
         m_hline[0]=m;
         m_hline[1]=m;
-
-        t_hline[1]=(double)t;
     }
 }
 
@@ -176,6 +185,7 @@ int main(int, char**)
     bool show_plot_window = false;
     bool hot_start = true;
     bool wolff = false;
+    bool redraw = true;
     bool state_toggle = true;
     bool first_press = true;
     bool need_to_reset_graph = false;
@@ -189,32 +199,30 @@ int main(int, char**)
         0.75, 0.80, 0.85, 0.90, 0.95, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0};
     
     // Independent variables 
-    Dataplot sweep = Dataplot("Sweep");
+    Dataplot time = Dataplot("Time");
     Dataplot temp = Dataplot("Temperature",0.0,10.5);
     
     // Energy variables
     Dataplot energy = Dataplot("Energy");
-    Dataplot avg_energy = Dataplot("<Energy>",-2.1,0.0);
-
+    Dataplot avg_energy = Dataplot("<Energy>",-2.1,0.0, ImPlotLocation_North | ImPlotLocation_West);
     std::vector<double> var_energy;
     double current_avg_energy = 0.0; //curent sample mean
     double current_M2_energy = 0.0; // sum of squares of differences from the current mean
 
     // Magnetization variables
     Dataplot mag = Dataplot("Magnetization");
-    Dataplot avg_mag = Dataplot("<Magnetization>",0.0,1.0);
-
+    Dataplot avg_mag = Dataplot("<Magnetization>",-0.05,1.05, ImPlotLocation_North | ImPlotLocation_East);
     std::vector<double> var_mag;
     double current_avg_mag = 0.0;
     double current_M2_mag = 0.0;
 
     // Vectors for plotting avg value as horizontal line
-    std::vector<double> sweep_hline(1,0.0);
+    std::vector<double> time_hline(1,0.0);
     std::vector<double> avg_energy_hline(1,0.0);
     std::vector<double> avg_mag_hline(1,0.0);
 
     // Specific Heat
-    Dataplot cv = Dataplot("Specific Heat",0.0,0.0);
+    Dataplot cv = Dataplot("Specific Heat",-0.05,3.05, ImPlotLocation_North | ImPlotLocation_East);
 
     // List of dependent variables for plotA and plotB
     Dataplot* plotA_options[2] = { &energy, &mag};
@@ -228,8 +236,9 @@ int main(int, char**)
 
     // Experimental parameters and progress tracking
     int current_sweep = 0;
+    int sweep_skip = 1;
     int current_beta_idx = 0;
-    int sweeps_per_point = 100;
+    int sweeps_per_run = 100;
     float progress = 0.0;
 
     // Slider bounds
@@ -239,9 +248,7 @@ int main(int, char**)
     const double field_high = 1.0;
 
     // Graphing parameters
-    int max_data_size = 5000;
-
-    
+    int max_data_size = 10000;
 
     // Main loop
     bool done = false;
@@ -271,6 +278,7 @@ int main(int, char**)
         float pad = ImGui::GetStyle().FramePadding.x;
         float inner_pad = ImGui::GetStyle().ItemInnerSpacing.x;
         float checkbox_width = ImGui::GetFrameHeight();
+        float plot_height = 400.0f-1.5*checkbox_width - 2*pad;
         
         // Hacky way to get the width of strings of various lengths
         float three_char_width = ImGui::CalcTextSize("123").x;
@@ -282,7 +290,7 @@ int main(int, char**)
         float nine_char_width = ImGui::CalcTextSize("123456789").x;
         float ten_char_width = ImGui::CalcTextSize("1234567890").x;
         
-        // Align the slider width with the row of buttons above it
+        // Align the slider widths with the row of buttons above it
         float slider_width = 4*ten_char_width + six_char_width + 5*checkbox_width + 26*pad;
 
         // combo box widths
@@ -292,20 +300,20 @@ int main(int, char**)
 
         // progress bar is calculated relative to other widgets
         float plot_width = 600.0f;
-        float collect_button_width = seven_char_width + 2.0f*pad;
-        float reset_button_width = five_char_width + 2.0f*pad;
-        float sweeps_width = six_char_width + 2.0f*pad;
+        float collect_button_width = seven_char_width + 2*pad;
+        float reset_button_width = five_char_width + 2*pad;
+        float sweeps_width = six_char_width + 2*pad;
         ImVec2 progress_bar_size = ImVec2(plot_width-collect_button_width-reset_button_width-2*sweeps_width-5*pad,0.0f);
         
         // Free play mode: constantly update the simulation    
         if (play)
         {
             // Only save up to max_data_size (5000) data points
-            if (sweep.data.size() < max_data_size)
+            if (current_sweep < max_data_size)
             {
+                time.data.push_back(sim->time);
                 energy.data.push_back(sim->energy);
                 mag.data.push_back(abs(sim->mag));
-                sweep.data.push_back((double)current_sweep);
                 
                 // Welford's online algorithm for statistics 
                 if (current_sweep==0)
@@ -330,7 +338,7 @@ int main(int, char**)
                 // End Welford
 
                 UpdateHLines(
-                    sweep_hline,current_sweep,
+                    time_hline,sim->time,
                     avg_energy_hline,current_avg_energy,
                     avg_mag_hline,current_avg_mag
                 ); 
@@ -339,14 +347,33 @@ int main(int, char**)
             {
                 need_to_reset_graph = true;
             }
-
-            for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+            
+            double start_time = sim->time;
+            while (sim->time - start_time < 0.99)
             {
-                sim->UpdateMetropolis();
+                if (wolff)
+                {
+                    sim->UpdateWolff();
+                }
+                else
+                {
+                    for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+                    {
+                        sim->UpdateMetropolis();
+                    }
+                }
+            }
+            if (wolff)
+            {
+                sim->energy = sim->CalcEnergy();
+            }
+            if (current_sweep % sweep_skip == 0)
+            {
+                // Update Display
+                UpdateImageFromSim(sim,image);
+                UpdateTexture(image);
             }
             current_sweep++;
-            UpdateImageFromSim(sim,image);
-            UpdateTexture(image);
         }
 
         // Data collection mode: run a fixed set of beta values
@@ -356,14 +383,14 @@ int main(int, char**)
             {
                 sim->beta=test_betas[current_beta_idx];
 
-                if (current_sweep<sweeps_per_point)
+                if (current_sweep<sweeps_per_run)
                 {
+                    time.data.push_back(sim->time);
                     energy.data.push_back(sim->energy);
                     mag.data.push_back(abs(sim->mag));
-                    sweep.data.push_back((double)current_sweep);
 
                     // Welford's online algorithm for statistics 
-                    if (current_sweep==0)
+                    if (current_sweep == 0)
                     {
                         current_avg_energy += energy.data.back();
                         current_avg_mag += mag.data.back();
@@ -386,45 +413,70 @@ int main(int, char**)
                     
 
                     UpdateHLines(
-                        sweep_hline,current_sweep,
+                        time_hline,sim->time,
                         avg_energy_hline,current_avg_energy,
                         avg_mag_hline,current_avg_mag
                     );
                     
-                    for (int i=0;i<sim->GetHeight()*sim->GetWidth();i++)
+                    double start_time = sim->time;
+                    while (sim->time - start_time < 0.99)
                     {
-                        sim->UpdateMetropolis();
+                        if (wolff)
+                        {
+                            sim->UpdateWolff();
+                        } 
+                        else
+                        {
+                            for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+                            {
+                                sim->UpdateMetropolis();
+                            }
+                        }
                     }
-                    current_sweep++;
+                    if (wolff)
+                    {
+                        sim->energy = sim->CalcEnergy();
+                    }
+                    if (current_sweep % sweep_skip == 0)
+                    {
+                        // Update Display
+                        UpdateImageFromSim(sim,image);
+                        UpdateTexture(image);
+                    }
+                    current_sweep += 1;
                 }
                 else
                 {
+                    // Push results of run to data vectors
                     temp.data.push_back(1/(sim->beta));
-
                     avg_energy.data.push_back(current_avg_energy);
                     var_energy.push_back(current_M2_energy/current_sweep);
-                    current_avg_energy = 0.0;
-                    current_M2_energy = 0.0;
-                    
                     avg_mag.data.push_back(current_avg_mag);
-                    var_mag.push_back(current_M2_mag/current_sweep);
-                    current_avg_mag = 0.0;
-                    current_M2_mag = 0.0;
-                    ResetHLines(sweep_hline, avg_energy_hline, avg_mag_hline);
+                    var_mag.push_back(current_M2_mag/time.data.size());
+                    cv.data.push_back(sim->beta*sim->beta*var_energy.back());
                     
+                    // Reset PlotA                    
+                    time.data.clear();
                     energy.data.clear();
                     mag.data.clear();
-                    sweep.data.clear();
+                    sim->time = 0.0;
+                    current_sweep= 0;
+                    current_avg_energy = 0.0;
+                    current_M2_energy = 0.0;
+                    current_avg_mag = 0.0;
+                    current_M2_mag = 0.0;
+                    ResetHLines(time_hline, avg_energy_hline, avg_mag_hline);
 
-                    current_sweep=0;
+                    // Reset Sim
                     hot_start?sim->HotStart():sim->ColdStart();
                     
+                    // Update Display
+                    UpdateImageFromSim(sim,image);
+                    UpdateTexture(image);
+
                     current_beta_idx++;
                 }
-                progress=(1.0f*current_beta_idx*sweeps_per_point + current_sweep)/(test_betas.size()*sweeps_per_point);
-
-                UpdateImageFromSim(sim,image);
-                UpdateTexture(image);
+                progress=(1.0f*current_beta_idx*sweeps_per_run + current_sweep)/(test_betas.size()*sweeps_per_run);
             }
             else
             {
@@ -465,14 +517,14 @@ int main(int, char**)
             if (ImGui::Button("Step"))
             {
                 // Only save up to max_data_size (5000) data points
-                if (sweep.data.size() < max_data_size)
+                if (current_sweep < max_data_size)
                 {
+                    time.data.push_back(sim->time);
                     energy.data.push_back(sim->energy);
                     mag.data.push_back(abs(sim->mag));
-                    sweep.data.push_back((double)current_sweep);
                    
                     // Welford's online algorithm for statistics 
-                    if (current_sweep==0)
+                    if (current_sweep == 0)
                     {
                         current_avg_energy += energy.data.back();
                         current_avg_mag += mag.data.back();
@@ -491,9 +543,10 @@ int main(int, char**)
                         current_M2_energy += energy_delta * energy_delta2;
                         current_M2_mag += mag_delta * mag_delta2;
                     }
+                    // End Welford
 
                     UpdateHLines(
-                        sweep_hline,current_sweep,
+                        time_hline,sim->time,
                         avg_energy_hline,current_avg_energy,
                         avg_mag_hline,current_avg_mag
                     );
@@ -503,13 +556,32 @@ int main(int, char**)
                     need_to_reset_graph = true;
                 }
                 
-                for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+                double start_time = sim->time;
+                while (sim->time - start_time < 0.99)
                 {
-                    sim->UpdateMetropolis();
+                    if (wolff)
+                    {   
+                        sim->UpdateWolff();
+                    } 
+                    else
+                    {
+                        for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+                        {
+                            sim->UpdateMetropolis();
+                        }
+                    }
                 }
-                current_sweep++;
-                UpdateImageFromSim(sim, image);
+
+                if (wolff)
+                {
+                    sim->energy = sim->CalcEnergy();
+                }
+                
+                // Update Display
+                UpdateImageFromSim(sim,image);
                 UpdateTexture(image);
+                
+                current_sweep++;
             }
             ImGui::EndDisabled();
             
@@ -517,7 +589,10 @@ int main(int, char**)
             ImGui::SameLine();
             if (ImGui::Button("Reset##ResetSimulation"))
             {
+                // Reset Sim
                 hot_start?sim->HotStart():sim->ColdStart();
+                
+                // Update Display
                 UpdateImageFromSim(sim, image);
                 UpdateTexture(image);
             }
@@ -547,10 +622,23 @@ int main(int, char**)
                         int new_size = std::atoi(sizes[n]);
                         
                         // Make a new simulation with the same temperature and field paramters but a new size
-                        delete[] sim;
-                        Ising* sim = new Ising(new_size,new_size,current_beta,current_field);
+                        delete sim;
+                        sim = new Ising(new_size,new_size,current_beta,current_field);
                         hot_start?sim->HotStart():sim->ColdStart();
-                        
+
+                        // Reset PlotA
+                        time.data.clear();
+                        energy.data.clear();
+                        mag.data.clear();
+                        sim->time = 0.0;
+                        current_sweep=0;
+                        ResetHLines(time_hline, avg_energy_hline, avg_mag_hline);
+                        current_avg_energy = 0.0;
+                        current_M2_energy = 0.0;
+                        current_avg_mag = 0.0;
+                        current_M2_mag = 0.0;
+                        need_to_reset_graph = false;
+
                         // Update display
                         UpdateImageFromSim(sim, image);
                         UpdateTexture(image);
@@ -581,9 +669,11 @@ int main(int, char**)
             ImGui::Checkbox("Hot Start", &hot_start);
 
             ImGui::SameLine();
-            ImGui::Checkbox("Wolff Cluster", &wolff);
+            if(ImGui::Checkbox("Wolff Cluster", &wolff))
+            {
+                sweep_skip = 2 - !wolff;
+            }
             
-            //ImGui::PushItemWidth(34.f * ImGui::GetFontSize());
             ImGui::PushItemWidth(slider_width);
             ImGui::SliderScalar("Beta",ImGuiDataType_Double, &sim->beta, &beta_low, &beta_high,"%.4f",ImGuiSliderFlags_Logarithmic);
             if(ImGui::SliderScalar("Field",ImGuiDataType_Double, &sim->field, &field_low, &field_high,"%.2f"))
@@ -607,14 +697,15 @@ int main(int, char**)
             // Plotting
             ImGui::SameLine();
             ImGui::BeginGroup();
-            if (ImPlot::BeginPlot("Simulation Monitor",ImVec2(plot_width,300)))
+            if (ImPlot::BeginPlot("Simulation Monitor",ImVec2(plot_width,plot_height)))
             {
-                ImPlot::SetupAxes(sweep.name,current_plotA->name,ImPlotAxisFlags_AutoFit,ImPlotAxisFlags_AutoFit);
-                ImPlot::PlotLine("Data",sweep.data.data(),current_plotA->data.data(),sweep.data.size());
-                ImPlot::PlotLine("Avg",sweep_hline.data(),current_hline->data(),sweep_hline.size());
+                ImPlot::SetupAxes(time.name,current_plotA->name,ImPlotAxisFlags_AutoFit,ImPlotAxisFlags_AutoFit);
+                ImPlot::PlotLine("Data",time.data.data(),current_plotA->data.data(),time.data.size());
+                ImPlot::PlotLine("Avg",time_hline.data(),current_hline->data(),time_hline.size());
                 ImPlot::EndPlot();
             }
 
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f,5.0f));
             if (need_to_reset_graph)
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(0 / 7.0f, 0.6f, 0.6f));
@@ -624,17 +715,17 @@ int main(int, char**)
                 ImGui::BeginDisabled(collecting || (!first_press));
                 if (ImGui::Button("Reset Plot##ResetPlotA"))
                 {
+                    // Reset PlotA
+                    time.data.clear();
                     energy.data.clear();
                     mag.data.clear();
-                    sweep.data.clear();
+                    sim->time = 0.0;
                     current_sweep=0;
-                    
-                    ResetHLines(sweep_hline, avg_energy_hline, avg_mag_hline);
+                    ResetHLines(time_hline, avg_energy_hline, avg_mag_hline);
                     current_avg_energy = 0.0;
                     current_M2_energy = 0.0;
                     current_avg_mag = 0.0;
                     current_M2_mag = 0.0;
-
                     need_to_reset_graph = false;
                 }
                 ImGui::PopStyleColor(3);
@@ -645,16 +736,18 @@ int main(int, char**)
                 ImGui::BeginDisabled(collecting || (!first_press));
                 if (ImGui::Button("Reset Plot##ResetPlotA"))
                 {
+                    // Reset PlotA
+                    time.data.clear();
                     energy.data.clear();
                     mag.data.clear();
-                    sweep.data.clear();
+                    sim->time = 0.0;
                     current_sweep=0;
-                    
-                    ResetHLines(sweep_hline, avg_energy_hline, avg_mag_hline);
+                    ResetHLines(time_hline, avg_energy_hline, avg_mag_hline);
                     current_avg_energy = 0.0;
                     current_M2_energy = 0.0;
                     current_avg_mag = 0.0;
                     current_M2_mag = 0.0;
+                    need_to_reset_graph = false;
                 }
                 ImGui::EndDisabled();
             }
@@ -685,12 +778,13 @@ int main(int, char**)
                 }
                 ImGui::EndCombo();
             }
+            ImGui::PopStyleVar();
 
 
-            // Data collecting plotting
-            if (ImPlot::BeginPlot("Experiment Results",ImVec2(600,300)))
+            // PlotB - Automated Simulation Runs
+            if (ImPlot::BeginPlot("Experiment Results",ImVec2(plot_width,plot_height)))
             {
-                
+                ImPlot::SetupLegend(current_plotB->loc,0);
                 ImPlot::SetupAxesLimits(temp.vmin,temp.vmax,current_plotB->vmin,current_plotB->vmax,ImGuiCond_Always);
                 ImPlot::SetupAxes(temp.name,current_plotB->name,0,0);
                 ImPlot::PlotLine("Data",temp.data.data(),current_plotB->data.data(),temp.data.size());
@@ -702,22 +796,32 @@ int main(int, char**)
             {
                 if(first_press)
                 {
+                    // Reset PlotA
+                    time.data.clear();
                     energy.data.clear();
                     mag.data.clear();
-                    sweep.data.clear();
+                    sim->time = 0.0;
                     current_sweep = 0;
-                    current_beta_idx=0;
-                   
-                    ResetHLines(sweep_hline, avg_energy_hline, avg_mag_hline);
+                    ResetHLines(time_hline, avg_energy_hline, avg_mag_hline);
                     current_avg_energy = 0.0;
                     current_M2_energy = 0.0;
                     current_avg_mag = 0.0;
                     current_M2_mag = 0.0;
-
+                    need_to_reset_graph = false; 
+                    
+                    // Reset Sim
+                    current_beta_idx=0;
                     hot_start?sim->HotStart():sim->ColdStart();
                     sim->beta = test_betas[current_beta_idx];
-
+                    
+                    // Update Display
+                    UpdateImageFromSim(sim, image);
+                    UpdateTexture(image);
+                    
+                    // State Flags
                     first_press=false;
+
+                    // Reset Progress
                     progress=0.0;
                 }
                 collecting = 1 - collecting;
@@ -726,40 +830,45 @@ int main(int, char**)
             ImGui::SameLine();
             if (ImGui::Button("Reset##ResetExperiment"))
             {
+                // Reset PlotA
+                time.data.clear();
                 energy.data.clear();
                 mag.data.clear();
-                sweep.data.clear();
+                sim->time = 0.0;
                 current_sweep = 0;
-                
-                hot_start?sim->HotStart():sim->ColdStart();
-                current_beta_idx = 0; 
-                sim->beta = test_betas[current_beta_idx];
-                UpdateImageFromSim(sim, image);
-                UpdateTexture(image);
-                
+                ResetHLines(time_hline, avg_energy_hline, avg_mag_hline);
                 current_avg_energy = 0.0;
                 current_M2_energy = 0.0;
                 current_avg_mag = 0.0;
                 current_M2_mag = 0.0;
-
-
-                ResetHLines(sweep_hline, avg_energy_hline, avg_mag_hline);
                 
+                // Reset Sim
+                current_beta_idx = 0; 
+                hot_start?sim->HotStart():sim->ColdStart();
+                sim->beta = test_betas[current_beta_idx];
+                
+                // Update Display
+                UpdateImageFromSim(sim, image);
+                UpdateTexture(image);
+                
+                // Reset PlotB
+                temp.data.clear();
                 avg_energy.data.clear();
                 avg_mag.data.clear();
-                temp.data.clear();
 
+                // State flags
                 collecting=false;
                 first_press=true;
+                
+                // Reset Progress
                 progress=0.0;
             } 
-            
 
             // Select sweeps per data point
             ImGui::SameLine();
             ImGui::BeginDisabled(collecting);
             ImGui::SetNextItemWidth(sweeps_width);
-            ImGui::InputInt("Sweeps",&sweeps_per_point,0);
+            ImGui::InputInt("Sweeps",&sweeps_per_run,0);
             ImGui::EndDisabled();
            
             // Experiment progress
@@ -769,9 +878,10 @@ int main(int, char**)
             
             if (ImGui::Button("Reset Plot##ResetPlotB"))
             {
+                // Reset PlotB
+                temp.data.clear();
                 avg_energy.data.clear();
                 avg_mag.data.clear();
-                temp.data.clear();
             }
             
             // PlotB Combo box
@@ -818,8 +928,8 @@ int main(int, char**)
     ImGui_ImplSDL2_Shutdown();
     ImPlot::DestroyContext();
     ImGui::DestroyContext();
-    delete[] sim;
-    delete[] image;
+    delete sim;
+    delete image;
 
     SDL_GL_DeleteContext(gl_context);
     SDL_DestroyWindow(window);

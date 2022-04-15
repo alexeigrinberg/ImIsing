@@ -12,8 +12,6 @@ class LatticeImage
         int nchan=4;
     public:
         unsigned char* data;
-        //unsigned int color_a = 0xFFFFFFFF;
-        //unsigned int color_b = 0x000000FF;
 
         float* color_a;
         float* color_b;

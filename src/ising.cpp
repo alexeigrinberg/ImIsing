@@ -4,6 +4,7 @@ Ising::Ising(int w, int h)
 {
     width = w;
     height = h;
+    size = w*h;
     data = new char[w*h];
     
     // initialize RNG
@@ -18,10 +19,12 @@ Ising::Ising(int w, int h, double b, double f)
 {
     width = w;
     height = h;
+    size = w*h;
+
     beta = b;
     field = f;
     data = new char[w*h];
-    
+
     // initialize RNG
     engine = std::mt19937(1);
     coin = std::uniform_int_distribution<int>(0,1);
@@ -88,7 +91,7 @@ double Ising::CalcEnergy()
     }
     //printf("Site Energy: %.1f\n",site_energy);
     //printf("Bond Energy: %.1f\n",bond_energy);
-    return (0.5*jay*bond_energy + mew*field*site_energy)/(width*height);
+    return (0.5*jay*bond_energy + mew*field*site_energy)/size;
 }
         
 double Ising::CalcMag()
@@ -103,7 +106,7 @@ double Ising::CalcMag()
             mag += data[i*width+j];
         }
     }
-    return mew*mag/(width*height);
+    return mew*mag/size;
 }
 
 double Ising::DeltaEnergy(int i, int j)
@@ -133,9 +136,83 @@ bool Ising::UpdateMetropolis()
     if ((delta <= 0.0) || (exp(-delta*beta) >= prob(engine)))
     {
         data[i*width+j] *= -1;
-        energy += delta/(width*height);
-        mag += 2*mew*data[i*width+j]/(width*height);
-    }   
+        energy += delta/size;
+        mag += 2*mew*data[i*width+j]/size;
+    }
+    time += 1.0/size;   
+    return true;
+}
+
+bool Ising::UpdateWolff()
+{
+    if (data==NULL)
+    {
+        return false;
+    }
+
+    int i = row_die(engine);
+    int j = col_die(engine);
+
+    int site = i*width+j;
+    wolff_stack.push(site);
+    
+    double dE = 0.0;
+    double dM = 0.0;
+    
+    int original_spin = data[site];
+    data[site] *= -1;
+    dM += 2*data[site];
+    int flipped = 1;
+
+    double flip_prob = 1-exp(-2*beta*jay);
+    while (!wolff_stack.empty())
+    {
+        int current_site = wolff_stack.top();
+        wolff_stack.pop();
+
+        int left = ((current_site % width)==0)?(current_site+width-1):(current_site-1);
+        int up = (current_site - width + size)%size;
+        int right = ((current_site % width)==(width-1))?(current_site-width+1):(current_site+1);
+        int down = (current_site + width)%size;
+        
+        int neighbor_sum = data[left] + data[up] + data[right] + data[down];
+
+        dE -= 2.0*(jay*neighbor_sum + mew*field)*data[site];
+
+        if ((data[left] == original_spin) && (prob(engine) <= flip_prob))
+        {
+            data[left] *= -1;
+            dM += 2*data[left];
+            flipped++;
+            wolff_stack.push(left);
+        }
+        if ((data[up] == original_spin) && (prob(engine) <= flip_prob))
+        {
+            data[up] *= -1;
+            dM += 2*data[up];
+            flipped++;
+            wolff_stack.push(up);
+        }
+        if ((data[right] == original_spin) && (prob(engine) <= flip_prob))
+        {
+            data[right] *= -1;
+            dM += 2*data[right];
+            flipped++;
+            wolff_stack.push(right);
+        }
+        if ((data[down] == original_spin) && (prob(engine) <= flip_prob))
+        {
+            data[down] *= -1;
+            dM += 2*data[down];
+            flipped++;
+            wolff_stack.push(down);
+        }
+    }
+
+    // Update variables
+    mag += dM/size;
+    //energy += dE/(width*height); dE calculation NYI -> make sure to update energy with CalcEnergy()
+    time += (1.0*flipped)/size;
     return true;
 }
 
