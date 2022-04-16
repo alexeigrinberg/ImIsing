@@ -221,13 +221,14 @@ int main(int, char**)
     std::vector<double> avg_energy_hline(1,0.0);
     std::vector<double> avg_mag_hline(1,0.0);
 
-    // Specific Heat
+    // Specific Heat and Magnetic Susceptibility
     Dataplot cv = Dataplot("Specific Heat",-0.05,3.05, ImPlotLocation_North | ImPlotLocation_East);
+    Dataplot chi = Dataplot("Susceptibility",-0.05,3.05, ImPlotLocation_North | ImPlotLocation_East);
 
     // List of dependent variables for plotA and plotB
     Dataplot* plotA_options[2] = { &energy, &mag};
     std::vector<double>* plotA_hlines[2] = { &avg_energy_hline, &avg_mag_hline };
-    Dataplot* plotB_options[3] = { &avg_energy, &avg_mag, &cv};
+    Dataplot* plotB_options[4] = { &avg_energy, &avg_mag, &cv, &chi};
 
     // Which variable is currently being plotted
     Dataplot* current_plotA = &energy;
@@ -237,6 +238,7 @@ int main(int, char**)
     // Experimental parameters and progress tracking
     int current_sweep = 0;
     int sweep_skip = 1;
+    int sweep_ignore = 50;
     int current_beta_idx = 0;
     int sweeps_per_run = 100;
     float progress = 0.0;
@@ -382,42 +384,45 @@ int main(int, char**)
             if (current_beta_idx < test_betas.size())
             {
                 sim->beta=test_betas[current_beta_idx];
-
-                if (current_sweep<sweeps_per_run)
+                
+                if (current_sweep < sweeps_per_run + sweep_ignore)
                 {
                     time.data.push_back(sim->time);
                     energy.data.push_back(sim->energy);
                     mag.data.push_back(abs(sim->mag));
 
-                    // Welford's online algorithm for statistics 
-                    if (current_sweep == 0)
+                    if (current_sweep >= sweep_ignore)
                     {
-                        current_avg_energy += energy.data.back();
-                        current_avg_mag += mag.data.back();
+                        // Welford's online algorithm for statistics 
+                        if (current_sweep == sweep_ignore)
+                        {
+                            current_avg_energy += energy.data.back();
+                            current_avg_mag += mag.data.back();
+                        }
+                        else
+                        {
+                            double energy_delta = energy.data.back() - current_avg_energy;
+                            double mag_delta = mag.data.back() - current_avg_mag;
+
+                            current_avg_energy += energy_delta / (current_sweep-sweep_ignore+1);
+                            current_avg_mag += mag_delta / (current_sweep-sweep_ignore+1);
+
+                            double energy_delta2 = energy.data.back() - current_avg_energy;
+                            double mag_delta2 = mag.data.back() - current_avg_mag;
+
+                            current_M2_energy += energy_delta * energy_delta2;
+                            current_M2_mag += mag_delta * mag_delta2;
+                        }
+                        // End Welford
+                        
+
+                        UpdateHLines(
+                            time_hline,sim->time,
+                            avg_energy_hline,current_avg_energy,
+                            avg_mag_hline,current_avg_mag
+                        );
                     }
-                    else
-                    {
-                        double energy_delta = energy.data.back() - current_avg_energy;
-                        double mag_delta = mag.data.back() - current_avg_mag;
 
-                        current_avg_energy += energy_delta / (current_sweep+1);
-                        current_avg_mag += mag_delta / (current_sweep+1);
-
-                        double energy_delta2 = energy.data.back() - current_avg_energy;
-                        double mag_delta2 = mag.data.back() - current_avg_mag;
-
-                        current_M2_energy += energy_delta * energy_delta2;
-                        current_M2_mag += mag_delta * mag_delta2;
-                    }
-                    // End Welford
-                    
-
-                    UpdateHLines(
-                        time_hline,sim->time,
-                        avg_energy_hline,current_avg_energy,
-                        avg_mag_hline,current_avg_mag
-                    );
-                    
                     double start_time = sim->time;
                     while (sim->time - start_time < 0.99)
                     {
@@ -450,11 +455,12 @@ int main(int, char**)
                     // Push results of run to data vectors
                     temp.data.push_back(1/(sim->beta));
                     avg_energy.data.push_back(current_avg_energy);
-                    var_energy.push_back(current_M2_energy/current_sweep);
                     avg_mag.data.push_back(current_avg_mag);
-                    var_mag.push_back(current_M2_mag/time.data.size());
-                    cv.data.push_back(sim->beta*sim->beta*var_energy.back());
-                    
+                    var_energy.push_back(current_M2_energy/(current_sweep-sweep_ignore));
+                    var_mag.push_back(current_M2_mag/(current_sweep-sweep_ignore));
+                    cv.data.push_back(sim->beta*sim->beta*sim->GetSize()*var_energy.back());
+                    chi.data.push_back(sim->beta*sim->GetSize()*var_mag.back());
+
                     // Reset PlotA                    
                     time.data.clear();
                     energy.data.clear();
@@ -476,7 +482,7 @@ int main(int, char**)
 
                     current_beta_idx++;
                 }
-                progress=(1.0f*current_beta_idx*sweeps_per_run + current_sweep)/(test_betas.size()*sweeps_per_run);
+                progress=(1.0f*current_beta_idx*(sweeps_per_run+sweep_ignore) + current_sweep)/(test_betas.size()*(sweeps_per_run+sweep_ignore));
             }
             else
             {
@@ -855,6 +861,8 @@ int main(int, char**)
                 temp.data.clear();
                 avg_energy.data.clear();
                 avg_mag.data.clear();
+                cv.data.clear();
+                chi.data.clear();
 
                 // State flags
                 collecting=false;
@@ -882,6 +890,8 @@ int main(int, char**)
                 temp.data.clear();
                 avg_energy.data.clear();
                 avg_mag.data.clear();
+                cv.data.clear();
+                chi.data.clear();
             }
             
             // PlotB Combo box

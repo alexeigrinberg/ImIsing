@@ -38,7 +38,8 @@ class Ising
         
         int GetWidth() { return width; }
         int GetHeight() { return height; }        
-        
+        int GetSize() { return width*height; }
+
         bool HotStart();
         bool ColdStart();
         double CalcEnergy();
