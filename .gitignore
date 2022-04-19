@@ -3,3 +3,4 @@ src/obj/*
 src/*.so
 src/imgui.ini
 src/ising
+docs/*.png
