@@ -2,7 +2,9 @@ CC=g++
 
 #includes
 IDIR=../include
-CFLAGS=-I$(IDIR) -O3
+GFH_DIR=../gif-h
+STB_DIR=../stb
+CFLAGS=-I$(IDIR) -I$(GFH_DIR) -I$(STB_DIR) -O3
 
 #dependencies
 _DEPS=helper.h ising.h latticeimage.h

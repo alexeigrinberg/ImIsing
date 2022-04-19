@@ -9,7 +9,6 @@ class LatticeImage
     private:
         int width;
         int height;
-        int nchan=4;
     public:
         unsigned char* data;
 
@@ -17,12 +16,10 @@ class LatticeImage
         float* color_b;
         
         LatticeImage(int w, int h);
-        LatticeImage(int w, int h, int n);
         LatticeImage(int w, int h, float* ca, float* cb);
 
         int GetWidth() { return width; }
         int GetHeight() { return height; }
-        int GetNumChan() { return nchan; }
 
         bool PrintData();
 };

@@ -16,5 +16,6 @@ bool UpdateImageFromSim(Ising* sim, LatticeImage* image);
 bool SetupTexture(GLuint* out_texture);
 bool UpdateTexture(LatticeImage* image);
 bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height);
+bool SaveImage(const char* filename, LatticeImage* image);
 #endif /* HELPER_H */
 

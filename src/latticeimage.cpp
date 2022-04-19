@@ -4,7 +4,7 @@ LatticeImage::LatticeImage(int w, int h)
 {
     width = w;
     height = h;
-    data = new unsigned char[w*h*nchan];
+    data = new unsigned char[w*h*4];
     color_a = new float[4];
     color_b = new float[4];
     
@@ -19,19 +19,12 @@ LatticeImage::LatticeImage(int w, int h)
     color_b[3] = 1.0f;
 }
 
-LatticeImage::LatticeImage(int w, int h, int n)
-{
-    width = w;
-    height = h;
-    nchan = n;
-    data = new unsigned char[w*h*n];
-}
 
 LatticeImage::LatticeImage(int w, int h, float* ca, float* cb)
 {
     width = w;
     height = h;
-    data = new unsigned char[w*h*nchan];
+    data = new unsigned char[w*h*4];
     color_a = ca;
     color_b = cb;
 }
@@ -41,8 +34,8 @@ bool LatticeImage::PrintData()
     if (data == NULL)
         return false;
     for (int i=0; i<height; i++){
-        for (int j=0; j<width*nchan; j++){
-            std::cout << std::setw(3) << (int) data[i*width*nchan + j] << ' ';
+        for (int j=0; j<width*4; j++){
+            std::cout << std::setw(3) << (int) data[i*width*4 + j] << ' ';
         }
         std::cout << std::endl;
     }

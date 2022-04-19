@@ -1,18 +1,19 @@
+// Dear ImGui
 #include "imgui.h"
-#include "implot.h"
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
-#include "helper.h"
-#include <stdio.h>
-#include <iostream>
-#include <vector>
-#include <SDL.h>
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-#include <SDL_opengles2.h>
-#else
-#include <SDL_opengl.h>
-#endif
 
+// Extra UI elements
+#include "implot.h"
+#include "gif.h"
+
+// Helper for ising and latticeimage
+#include "helper.h"
+
+#include <vector>
+#include <stdio.h>
+
+// Struct to hold plotting parameters and data
 struct Dataplot {
     std::vector<double> data;
     const char* name;
@@ -42,6 +43,7 @@ struct Dataplot {
 
 };
 
+// Horizontal line to show the current average energy/mag
 void UpdateHLines(std::vector<double>& t_hline, double t, std::vector<double>& e_hline, double e, std::vector<double>& m_hline, double m)
 {
     if (t==0)
@@ -71,6 +73,7 @@ void UpdateHLines(std::vector<double>& t_hline, double t, std::vector<double>& e
     }
 }
 
+// Clearing the horizontal line when resetting plotA
 void ResetHLines(std::vector<double>& t_hline, std::vector<double>& e_hline, std::vector<double>& m_hline)
 {
     t_hline.clear();
@@ -181,23 +184,42 @@ int main(int, char**)
     // Our state
     bool play = false;
     bool collecting = false;
+    bool recording = false;
     bool show_demo_window = false;
     bool show_plot_window = false;
     bool hot_start = true;
     bool wolff = false;
     bool redraw = true;
-    bool state_toggle = true;
     bool first_press = true;
     bool need_to_reset_graph = false;
+    bool debug = false;
 
     // GUI Color
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     // List of beta values for collecting experimental data
-    std::vector<double> test_betas{0.1,0.15,0.20,0.25,0.30,0.35,0.40,0.41,0.42,
-        0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.55, 0.60, 0.65, 0.70,
-        0.75, 0.80, 0.85, 0.90, 0.95, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0};
-    
+    std::vector<double> test_betas;
+    for (double i=0.1; i<=0.40; i+=0.05)
+    {
+        test_betas.push_back(i);
+    }
+    for (double i=0.41; i<=0.50; i+=0.01)
+    {
+        test_betas.push_back(i);
+    }
+    for (double i=0.55; i<=1.00; i+=0.05)
+    {
+        test_betas.push_back(i);
+    }
+    for (double i=1.1; i<=2.00; i+=0.1)
+    {
+        test_betas.push_back(i);
+    }
+    for (double i=3.0; i<=10.0; i+=1.0)
+    {
+        test_betas.push_back(i);
+    }
+
     // Independent variables 
     Dataplot time = Dataplot("Time");
     Dataplot temp = Dataplot("Temperature",0.0,10.5);
@@ -230,6 +252,27 @@ int main(int, char**)
     std::vector<double>* plotA_hlines[2] = { &avg_energy_hline, &avg_mag_hline };
     Dataplot* plotB_options[4] = { &avg_energy, &avg_mag, &cv, &chi};
 
+    int image_filename_max_size = 32;
+    char image_filename_buffer[image_filename_max_size];
+    int image_file_max = 50;
+    int image_file_counter = 0;
+    
+    int gif_filename_max_size = 32;
+    char gif_filename_buffer[gif_filename_max_size];
+    int gif_file_max = 10;
+    int gif_file_counter = 0;
+
+    int plotB_filename_max_size = 32;
+    char plotB_filename_buffer[plotB_filename_max_size];
+    int plotB_file_max = 100;
+    int plotB_file_counter = 0;
+
+    // gif variables
+    GifWriter g;
+    int current_frame = 0;
+    int gif_delay = 2;
+    int max_frame = 10*(100/gif_delay);
+    
     // Which variable is currently being plotted
     Dataplot* current_plotA = &energy;
     std::vector<double>* current_hline = &avg_energy_hline;
@@ -244,8 +287,8 @@ int main(int, char**)
     float progress = 0.0;
 
     // Slider bounds
-    const double beta_low = 0.0971;
-    const double beta_high = 2.0;
+    const double beta_low = 0.1;
+    const double beta_high = 10.0;
     const double field_low = -1.0;
     const double field_high = 1.0;
 
@@ -280,7 +323,7 @@ int main(int, char**)
         float pad = ImGui::GetStyle().FramePadding.x;
         float inner_pad = ImGui::GetStyle().ItemInnerSpacing.x;
         float checkbox_width = ImGui::GetFrameHeight();
-        float plot_height = 400.0f-1.5*checkbox_width - 2*pad;
+        float plot_height = 400.0f-0.5*checkbox_width - pad;
         
         // Hacky way to get the width of strings of various lengths
         float three_char_width = ImGui::CalcTextSize("123").x;
@@ -293,19 +336,20 @@ int main(int, char**)
         float ten_char_width = ImGui::CalcTextSize("1234567890").x;
         
         // Align the slider widths with the row of buttons above it
-        float slider_width = 4*ten_char_width + six_char_width + 5*checkbox_width + 26*pad;
+        float slider_width = 5*ten_char_width + six_char_width + 5*checkbox_width + 34*pad;
 
         // combo box widths
         float size_combo_width = three_char_width + 2*pad + checkbox_width; //3 digits
         float plotA_combo_width = ten_char_width + three_char_width + 2*pad + checkbox_width; //13 char
         float plotB_combo_width = ten_char_width + five_char_width + 2*pad + checkbox_width; //15 char
 
-        // progress bar is calculated relative to other widgets
+        // progress bar width is calculated relative to other widgets
         float plot_width = 600.0f;
         float collect_button_width = seven_char_width + 2*pad;
         float reset_button_width = five_char_width + 2*pad;
         float sweeps_width = six_char_width + 2*pad;
-        ImVec2 progress_bar_size = ImVec2(plot_width-collect_button_width-reset_button_width-2*sweeps_width-5*pad,0.0f);
+        float progress_bar_width = plot_width - collect_button_width - reset_button_width - 4*sweeps_width - 6*pad;
+        ImVec2 progress_bar_size = ImVec2(progress_bar_width,0.0f);
         
         // Free play mode: constantly update the simulation    
         if (play)
@@ -350,24 +394,17 @@ int main(int, char**)
                 need_to_reset_graph = true;
             }
             
-            double start_time = sim->time;
-            while (sim->time - start_time < 0.99)
-            {
-                if (wolff)
-                {
-                    sim->UpdateWolff();
-                }
-                else
-                {
-                    for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
-                    {
-                        sim->UpdateMetropolis();
-                    }
-                }
-            }
             if (wolff)
             {
+                sim->UpdateWolff();
                 sim->energy = sim->CalcEnergy();
+            }
+            else
+            {
+                for (int i=0; i<sim->GetHeight()*sim->GetWidth(); i++)
+                {
+                    sim->UpdateMetropolis();
+                }
             }
             if (current_sweep % sweep_skip == 0)
             {
@@ -378,7 +415,22 @@ int main(int, char**)
             current_sweep++;
         }
 
-        // Data collection mode: run a fixed set of beta values
+        if (recording)
+        {
+            if (current_frame < max_frame)
+            {
+                GifWriteFrame(&g, image->data, image_width, image_height, gif_delay);
+                current_frame++;
+            }
+            else
+            {
+                recording=false;
+                gif_file_counter++;
+                GifEnd(&g);
+            }
+        }
+
+        // Data collection mode: run a fixed set of beta values for a fixed number of sweeps while skipping the first few sweeps
         if (collecting)
         {
             if (current_beta_idx < test_betas.size())
@@ -505,7 +557,7 @@ int main(int, char**)
         {
             const char* start_name = play?"Pause##PauseSimulation":"Start"; 
             const char* collecting_name = collecting?" Pause ##PauseExperiment":(first_press?"Collect":"Resume ");
-            
+            const char* recording_name = recording?" Stop ##StopGif":"Record##RecordGif"; 
             ImGui::Begin("Ising Simulation");
             ImGui::BeginGroup();
             ImGui::Image((void*)(intptr_t)image_texture, ImVec2(image_width, image_height));
@@ -522,7 +574,7 @@ int main(int, char**)
             ImGui::BeginDisabled(play);
             if (ImGui::Button("Step"))
             {
-                // Only save up to max_data_size (5000) data points
+                // Only save up to max_data_size (default 5000) data points
                 if (current_sweep < max_data_size)
                 {
                     time.data.push_back(sim->time);
@@ -603,6 +655,45 @@ int main(int, char**)
                 UpdateTexture(image);
             }
 
+            ImGui::SameLine();
+            if (ImGui::Button("Save"))
+            {
+                std::snprintf(image_filename_buffer,image_filename_max_size,"../results/image/%03d.png",image_file_counter % image_file_max);
+                if (SaveImage(image_filename_buffer,image)) 
+                {
+                    image_file_counter++;
+                }
+                else
+                {
+                    printf("Failed to write image to file\n");
+                }
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Save a PNG");
+            }
+
+			ImGui::SameLine();
+			if (ImGui::Button(recording_name))
+            {
+                if (!recording)
+                {
+                    current_frame = 0;
+                    std::snprintf(gif_filename_buffer,gif_filename_max_size,"../results/gif/%03d.gif",gif_file_counter % gif_file_max);
+                    GifBegin(&g, gif_filename_buffer, image_width, image_height, gif_delay);
+                }
+                else
+                {
+                    GifEnd(&g);
+                    gif_file_counter++;
+                }
+                recording = 1 - recording;
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Record a GIF");
+            }
+
             // Size Combo box
             ImGui::SameLine();
             const char* sizes[] = { "800", "400", "200", "100", "50", "25" };
@@ -660,6 +751,10 @@ int main(int, char**)
                 UpdateImageFromSim(sim, image);
                 UpdateTexture(image);
             }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Change the spin-up color");
+            }
             
             // Spin-down color picker
             ImGui::SameLine();
@@ -668,7 +763,10 @@ int main(int, char**)
                 UpdateImageFromSim(sim, image);
                 UpdateTexture(image);
             }
-
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Change the spin-down color");
+            }
             
             // Initial spin configurations
             ImGui::SameLine();
@@ -681,28 +779,57 @@ int main(int, char**)
             }
             
             ImGui::PushItemWidth(slider_width);
-            ImGui::SliderScalar("Beta",ImGuiDataType_Double, &sim->beta, &beta_low, &beta_high,"%.4f",ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderScalar("Beta ",ImGuiDataType_Double, &sim->beta, &beta_low, &beta_high,"%.4f",ImGuiSliderFlags_Logarithmic);
+            ImGui::PopItemWidth();
+            
+            ImGui::SameLine();
+            if(ImGui::Button("Hot"))
+            {
+                sim->beta = beta_low;
+            }
+            ImGui::SameLine();
+            if(ImGui::Button("Crit"))
+            {
+                sim->beta = 0.4407;
+            }
+            ImGui::SameLine();
+            if(ImGui::Button("Cold"))
+            {
+                sim->beta = beta_high;
+            }
+
+            ImGui::PushItemWidth(slider_width);
             if(ImGui::SliderScalar("Field",ImGuiDataType_Double, &sim->field, &field_low, &field_high,"%.2f"))
             {
                 sim->energy = sim->CalcEnergy();
             }
-
             ImGui::PopItemWidth();
+            ImGui::SameLine();
+            if(ImGui::Button("-1 "))
+            {
+                sim->field = -1.0;
+                sim->energy = sim->CalcEnergy();
+            }
+            ImGui::SameLine();
+            if(ImGui::Button("Zero"))
+            {
+                sim->field = 0.0;
+                sim->energy = sim->CalcEnergy();
+            }
+            ImGui::SameLine();
+            if(ImGui::Button("+1  "))
+            {
+                sim->field = 1.0;
+                sim->energy = sim->CalcEnergy();
+            }
             ImGui::EndDisabled();
             
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::SameLine();
-            ImGui::Checkbox("Plot Demo Window", &show_plot_window);
-            
-            ImGui::SameLine();            
-            ImGui::Checkbox("State toggle", &state_toggle);
-            ImGui::SameLine();
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::EndGroup();
+                        ImGui::EndGroup();
             
             // Plotting
             ImGui::SameLine();
             ImGui::BeginGroup();
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f,5.0f));
             if (ImPlot::BeginPlot("Simulation Monitor",ImVec2(plot_width,plot_height)))
             {
                 ImPlot::SetupAxes(time.name,current_plotA->name,ImPlotAxisFlags_AutoFit,ImPlotAxisFlags_AutoFit);
@@ -710,8 +837,8 @@ int main(int, char**)
                 ImPlot::PlotLine("Avg",time_hline.data(),current_hline->data(),time_hline.size());
                 ImPlot::EndPlot();
             }
-
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f,5.0f));
+            ImGui::PopStyleVar();
+            
             if (need_to_reset_graph)
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(0 / 7.0f, 0.6f, 0.6f));
@@ -784,7 +911,6 @@ int main(int, char**)
                 }
                 ImGui::EndCombo();
             }
-            ImGui::PopStyleVar();
 
 
             // PlotB - Automated Simulation Runs
@@ -872,18 +998,36 @@ int main(int, char**)
                 progress=0.0;
             } 
 
-            // Select sweeps per data point
+            // Select how many initial sweeps to ignore per data point
             ImGui::SameLine();
             ImGui::BeginDisabled(collecting);
             ImGui::SetNextItemWidth(sweeps_width);
+            ImGui::InputInt("Ignore",&sweep_ignore,0);
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Number of initial sweeps to ignore");
+            }
+
+            // Select sweeps per data point
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(sweeps_width);
             ImGui::InputInt("Sweeps",&sweeps_per_run,0);
             ImGui::EndDisabled();
-           
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Number of sweeps to record");
+            }
+
             // Experiment progress
             ImGui::SameLine();
             ImGui::ProgressBar(progress, progress_bar_size);
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Experiment progress");
+            }
             ImGui::EndDisabled(); 
             
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f,7.0f));
             if (ImGui::Button("Reset Plot##ResetPlotB"))
             {
                 // Reset PlotB
@@ -920,6 +1064,43 @@ int main(int, char**)
                 ImGui::EndCombo();
             }
 
+            ImGui::SameLine();
+            if (ImGui::Button("Save Data"))
+            {
+                std::snprintf(plotB_filename_buffer,plotB_filename_max_size,"../results/data/%03d.dat",plotB_file_counter % plotB_file_max);
+                std::FILE* plotB_file = std::fopen(plotB_filename_buffer,"w");
+                if (plotB_file)
+                {
+                    std::fprintf(plotB_file,"# Size, Field, Hot Start, Wolff Algorithm\n");
+                    std::fprintf(plotB_file,"%d, %.8f, %d, %d\n", sim->GetWidth(), sim->field, hot_start, wolff);
+                    std::fprintf(plotB_file,"# Temperature, Avg Energy, Var Energy, Avg Mag, Var Mag, Specific Heat, Susceptibility, Sweeps\n");
+                    int data_size = temp.data.size();
+                    for (int i=0; i<data_size; i++)
+                    {
+                        std::fprintf(plotB_file,"%.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %d\n",temp.data[i],avg_energy.data[i],var_energy[i],avg_mag.data[i],var_mag[i],cv.data[i],chi.data[i],sweeps_per_run+sweep_ignore);
+                    }
+                    std::fclose(plotB_file);
+                    plotB_file_counter++;
+                }
+                else
+                {
+                    printf("Failed to write to file\n");
+                }
+            }
+            ImGui::PopStyleVar();
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Write data to file");
+            }
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            if (debug)
+            {
+                ImGui::SameLine();
+                ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+                ImGui::SameLine();
+                ImGui::Checkbox("Plot Demo Window", &show_plot_window);
+            }
             ImGui::EndGroup();
             ImGui::End();
         }

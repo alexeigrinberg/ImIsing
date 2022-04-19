@@ -1,4 +1,6 @@
 #define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 #include "stb_image.h"
 #include "helper.h"
 
@@ -12,7 +14,6 @@ bool UpdateImageFromSim(Ising* sim, LatticeImage* image)
     
     int out_width = image->GetWidth();
     int out_height = image->GetHeight();
-    int nchan = image->GetNumChan();
     unsigned char* data = image->data;
     
     int scale_x = out_width / in_width;
@@ -26,7 +27,6 @@ bool UpdateImageFromSim(Ising* sim, LatticeImage* image)
             char val = sim->data[i*in_width+j];
             
             float*  color = (val==1)?image->color_a:image->color_b;
-            //unsigned int color = (val==1)?image->color_a:image->color_b;
             
             for (int x=0; x<scale_y; x++)
             {
@@ -34,47 +34,10 @@ bool UpdateImageFromSim(Ising* sim, LatticeImage* image)
                 {
                     int idx = out_width*(scale_y*i+x)+scale_x*j+y;
                     // loop over each color channel
-                    switch (nchan)
-                    {
-                        case 1:
-                            data[idx] = (unsigned int)(color[0]*255.0f);
-                            
-                            //data[idx] = (color >> 24) & 0xFF;
-                            
-                            break;
-                        case 2:
-                            data[2*idx] = (unsigned int)(color[0]*255.0f);
-                            data[2*idx+1] = (unsigned int)(color[1]*255.0f);
-
-                            //data[2*idx] = (color >> 24) & 0xFF;
-                            //data[2*idx+1] = (color >> 16) & 0xFF;
-                            
-                            break;
-                        case 3:
-                            data[3*idx] = (unsigned int)(color[0]*255.0f);
-                            data[3*idx+1] = (unsigned int)(color[1]*255.0f);
-                            data[3*idx+2] = (unsigned int)(color[2]*255.0f);
-                            
-                            //data[3*idx] = (color >> 24) & 0xFF;
-                            //data[3*idx+1] = (color >> 16) & 0xFF;
-                            //data[3*idx+2] = (color >> 8) & 0xFF;
-                            
-                            break;
-                        case 4:
-                            data[4*idx] = (unsigned int)(color[0]*255.0f);
-                            data[4*idx+1] = (unsigned int)(color[1]*255.0f);
-                            data[4*idx+2] = (unsigned int)(color[2]*255.0f);
-                            data[4*idx+3] = (unsigned int)(color[3]*255.0f);
-                            
-                            //data[4*idx] = (color >> 24) & 0xFF;
-                            //data[4*idx+1] = (color >> 16) & 0xFF;
-                            //data[4*idx+2] = (color >> 8) & 0xFF;
-                            //data[4*idx+3] = color & 0xFF;
-                            
-                            break;
-                        default:
-                            return false;
-                    }
+                    data[4*idx] = (unsigned int)(color[0]*255.0f);
+                    data[4*idx+1] = (unsigned int)(color[1]*255.0f);
+                    data[4*idx+2] = (unsigned int)(color[2]*255.0f);
+                    data[4*idx+3] = (unsigned int)(color[3]*255.0f);
                 }
             }
         }
@@ -108,24 +71,10 @@ bool SetupTexture(GLuint* out_texture)
 bool UpdateTexture(LatticeImage* image)
 {
     if (image->data == NULL)
-        return false;
-    switch(image->GetNumChan())
     {
-        case 1:
-           glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, image->GetWidth(), image->GetHeight(), 0, GL_RED, GL_UNSIGNED_BYTE, image->data);
-           break;
-        case 2:
-           glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, image->GetWidth(), image->GetHeight(), 0, GL_RG, GL_UNSIGNED_BYTE, image->data);
-           break;
-        case 3:
-           glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image->GetWidth(), image->GetHeight(), 0, GL_RGB, GL_UNSIGNED_BYTE, image->data);
-           break;
-        case 4:
-           glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->GetWidth(), image->GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
-           break;
-        default:
-           return false;
+        return false;
     }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->GetWidth(), image->GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
     return true;
 }
 
@@ -162,4 +111,13 @@ bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_wid
     *out_height = image_height;
 
     return true;
+}
+
+bool SaveImage(const char* filename, LatticeImage* image)
+{
+    if (image == NULL)
+    {
+        return false;
+    }
+    return stbi_write_png(filename,image->GetWidth(),image->GetHeight(),4,image->data,0);
 }
