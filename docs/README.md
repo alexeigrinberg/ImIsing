@@ -10,11 +10,11 @@ ImIsing allows the user to visualize the spin lattice in real-time as it evolves
 
  First, in free-play mode, the various physical parameters such as temperature and magnetic field can be changed in real-time by using the sliders on the left side of the screen. The simulation can be paused and stepped through manually using the "Step" button. 
  
- The energy and magnetization of the lattice are calculated and plotted on the right side using the third-party Dear ImGui plugin [ImPlot](https://github.com/epezent/implot). Lattice screenshot pngs as well as gifs up to 10 seconds long can be saved with the help of the single-file libraries [stb](https://github.com/nothings/stb) and [gif-h](https://github.com/charlietangora/gif-h).
+ The energy and magnetization of the lattice are calculated and plotted on the right side using the third-party Dear ImGui plugin [ImPlot](https://github.com/epezent/implot). Lattice screenshot pngs as well as gifs up to 10 seconds long can be saved with the help of the single-file libraries [stb](https://github.com/nothings/stb) and [gif-h](https://github.com/charlietangora/gif-h). Images are saved to ```results/image``` and gifs are saved to ```results/gif```.
  
  <img src="https://user-images.githubusercontent.com/35658028/164157151-47a93006-e500-4e98-bf22-42a3bb3178ed.gif" width="400"/> <img src="https://user-images.githubusercontent.com/35658028/164157463-260fa044-9898-48ce-8ef8-ad4302f2e5ae.gif" width="400"/>
 
-Second, in collect-mode, the simulation begins a series of simulated annealing runs for a fixed number of steps at various fixed temperature values. The results are collected and plotted, allowing the user to investigate various parameters such as the average energy, average magnetization, specific heat, and susceptibility. While ImPlot provides great immediate feedback, those seeking to analyze the results further can download the data formatted as a csv.
+Second, in collect-mode, the simulation begins a series of simulated annealing runs for a fixed number of steps at various fixed temperature values. The results are collected and plotted, allowing the user to investigate various parameters such as the average energy, average magnetization, specific heat, and susceptibility. While ImPlot provides great immediate feedback, those seeking to analyze the results further can download the data formatted as a csv. Data are saved to ```results/data```.
 
 <img src="https://user-images.githubusercontent.com/35658028/164164186-78db3f63-f742-4d84-964c-f2c676a91752.png"/> <img src="https://user-images.githubusercontent.com/35658028/164163827-53302fd6-02e5-4a9a-941b-c3d2d8d0147e.png"/>
 
