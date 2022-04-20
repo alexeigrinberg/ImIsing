@@ -1,4 +1,4 @@
-#include "Ising.h"
+#include "ising.h"
 
 Ising::Ising(int w, int h)
 {
