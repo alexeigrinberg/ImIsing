@@ -425,6 +425,7 @@ int main(int, char**)
             else
             {
                 recording=false;
+                play=false;
                 gif_file_counter++;
                 GifEnd(&g);
             }
@@ -678,12 +679,14 @@ int main(int, char**)
             {
                 if (!recording)
                 {
+                    play = true;
                     current_frame = 0;
                     std::snprintf(gif_filename_buffer,gif_filename_max_size,"../results/gif/%03d.gif",gif_file_counter % gif_file_max);
                     GifBegin(&g, gif_filename_buffer, image_width, image_height, gif_delay);
                 }
                 else
                 {
+                    play = false;
                     GifEnd(&g);
                     gif_file_counter++;
                 }
