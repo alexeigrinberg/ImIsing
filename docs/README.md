@@ -18,9 +18,9 @@ Second, in collect-mode, the simulation begins a series of simulated annealing r
 
 <img src="https://user-images.githubusercontent.com/35658028/164164186-78db3f63-f742-4d84-964c-f2c676a91752.png"/> <img src="https://user-images.githubusercontent.com/35658028/164163827-53302fd6-02e5-4a9a-941b-c3d2d8d0147e.png"/>
 
-Note that play-mode is disabled while an experiment is being ran, and vice-versa. In order to re-enable play mode, the current experiment must either finish or be manually reset by the user by pressing the "Reset" button on the bottom-righthand side.
+Note that play-mode is disabled while an experiment is being run, and vice-versa. In order to re-enable play mode, the current experiment must either finish or be manually reset by the user by pressing the "Reset" button on the bottom-righthand side.
 
-The default size of the lattice is 400x400, which can be increased to 800x800 at the cost of performance. Numerous sizes all the way down to 25x25 are supported and  can be change by using the size drop-down box.
+The default size of the lattice is 400x400, which can be increased to 800x800 at the cost of performance. Numerous sizes all the way down to 25x25 are supported and  can be changed by using the size drop-down box.
 
 The colors of the lattice (default blue for spin-up and black for spin-down) can also be freely changed using the color picker widgets.
 
@@ -66,7 +66,7 @@ It is necessary to make sure the lattice is properly thermalized before taking d
 
 **Beta** refers to "inverse temperature", or more specifically ![](https://latex.codecogs.com/svg.image?\beta&space;=&space;\frac{1}{k_B&space;T}) where ![](https://latex.codecogs.com/svg.image?k_B) is Boltzmann's constant and is set to 1.
 
-**Hot start** refers to starting the lattice in a random spin configuration, as if temperature were infinite. Conversely, a **cold start** refers to starting the lattice in an all spin-up configuration, as if temperature were zero.
+**Hot start** refers to starting the lattice in a random spin configuration, as if temperature were infinite. Conversely, a **cold start** refers to starting the lattice in an all spin-up (or all spin-down) configuration, as if temperature were zero.
 
 Time is calculated in **sweeps**. One sweep refers to ![](https://latex.codecogs.com/svg.image?N^2) attempted spin flips. When using the Metropolis algorithm, time will always advance in steps of one sweep at a time. 
 
